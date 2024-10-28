@@ -1,0 +1,135 @@
+---
+title: "Лабораторна 1"
+author: "Valeriia Marynchenko"
+date: "September 28, 2024"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE)
+```
+
+
+## Виконання завдання
+
+
+### 1. Створюємо документ R Markdown, як описано вище у п. [_Створення RMarkdown-документу_](#CreateRMarkdown).
+
+### 2. Для набору формул використовуємо `LaTeX` згідно з правилами [його синтаксису](https://en.wikibooks.org/wiki/LaTeX/Mathematics). Формула у RMarkdown-документі має бути взята у символи $:
+
+`$y(x)=cos(x)+sin(2x)+ln(x)$`
+
+
+### 3. Пишемо код на R засобами базової графіки у відповідній зоні, яка називається чанком:
+
+
+```{r}
+
+# Задаємо параметри функції
+b0 <- 2
+b1 <- 3
+b2 <- 1.57
+
+# Задаємо область визначення
+
+x <- seq(0, 1, .1)
+y <- cos(x) + sin(x) +log(x, base = 10)
+
+plot(x, y,
+     type = "l",
+     col = "red",
+     main = "Графік функції",
+     xlab = "x",
+     ylab = "y"
+     )
+points(x, y,
+       col = "blue")
+
+df <- data.frame(x = x, y = y) # створюємо таблицю даних
+
+```
+
+### 4. Альтернативний варіант графіки за допомогою пакету `dplyr`.
+
+```{r}
+#
+#install.packages("ggplot2")
+#install.packages("dplyr")
+library(ggplot2)
+library(dplyr)
+
+head(df, 10)
+
+ggplot(df, aes(x = x, y = y)) +
+  geom_line() +
+  geom_point()
+
+```
+
+### 5. Графік із заповненням площі
+```{r}
+library(ggplot2)
+
+
+ggplot(df, aes(x = x, y = y)) +
+  geom_area(fill = "lightgreen", alpha = 0.6) +  # Area plot with transparency
+  geom_line(color = "darkgreen") +  # Outline of the line
+  labs(title = "Графік із заповненням площі y = cos(x) + sin(x) + log(x)",
+       x = "x",
+       y = "y") +
+  theme_minimal()
+```
+
+
+### 6. Продемонструємо можливості пакету `rio` [@rio] для експорту (імпорту) даних на диск (з диску).
+
+```{r}
+#install.packages("rio") # інсталяція пакету
+library(rio) # підключення пакету
+export(df, "data/data.csv")
+
+```
+### 7. Виконуємо імпорт даних із файлу і візуалізацію у вигляді таблиці. 
+
+```{r results='asis'}
+options(repos = c(CRAN = "https://cran.rstudio.com/bin/windows/contrib/4.4/"))
+dfNew <- read.csv("data/data.csv")
+
+# Таблиця засобами knitr
+knitr::kable(head(dfNew),
+             caption = "_Табл. 1. Фрагмент таблиці даних_")
+
+DT::datatable(dfNew)
+
+#install.packages("stargazer")
+#install.packages("xtable")
+# Таблиця засобами stargazer
+stargazer::stargazer(head(dfNew),
+                     type = "html",
+                     summary = FALSE,
+             title = "_Табл. 1. Фрагмент таблиці даних_")
+
+
+# Таблиця засобами xtable
+print(xtable::xtable(head(dfNew),
+                     type = "html",
+                     html.table.attributes="border=0",
+                     summary = FALSE,
+             caption = "_Табл. 1. Фрагмент таблиці даних_"))
+
+```
+
+### 8. Формуємо результуючу таблицю.
+
+_Табл. 2. Параметри функції_
+
+Параметр | Значення
+-----|-----
+$b_0$| `r b0`
+$b_1$| `r b1`
+$b_2$| `r b2`
+$x_1$| `r min(x)`
+$x_2$| `r max(x)`
