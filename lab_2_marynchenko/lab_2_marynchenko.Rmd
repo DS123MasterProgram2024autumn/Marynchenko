@@ -1,0 +1,139 @@
+---
+title: "Модуль 1. Базовий. Лабораторна робота №2. Маніпулювання даними"
+author: "Valeriia Marynchenko `r format(Sys.time(), '%Y')`"
+date: "`r Sys.Date()`"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: true
+    highlight: tango 
+---
+## Дослідження тривалості життя чоловіків та жінок
+
+### Інсталяція та імпотр бібліотек.Завантаження даних
+
+Імпортуємо бібліотеки для роботи з даними. Датасет взято з [Our World
+in Data](https://ourworldindata.org/grapher/life-expectancy-of-women-vs-life-expectancy-of-men?tab=table&time=2023)
+```{r}
+#install.packages("dplyr")
+library(ggplot2)
+library(dplyr)
+```
+Зчитуємо дані з **csv**-файлу. Відобразимо перші радки таблиці.
+```{r}
+data <- read.csv("data/life-expectancy-of-women-vs-life-expectancy-of-men.csv")
+head(data)
+```
+Переглянемо інформацію про вміст файлу
+
+```{r}
+summary(data)
+str(data)
+
+```
+
+### Приведення даних до охайного вигляду
+
+Для приведення даних до охайного вигляду використаємо бібліотеку **tidyr**. Відповідно виконаємо інсталяцію пакета. Відобразимо "охайні" дані за допомогою стовпчастої діаграми
+
+```{r}
+#install.packages("tidyr")
+library(tidyr)
+data_long <- data %>% 
+  pivot_longer(
+    cols = c(4, 5), 
+    names_to = "Sex",
+    values_to = "Life_expectancy"
+  ) %>%
+  mutate(Sex = ifelse(Sex == names(data)[4], 
+                      "Жінки", "Чоловіки")) %>% drop_na() 
+
+ggplot(data_long, aes(x = Year, y = Life_expectancy, fill = Sex)) +
+  geom_bar(na.rm = TRUE, stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("Жінки" = "pink", "Чоловіки" = "lightblue")) +
+  labs(
+    title = "Тривалість життя чоловіків і жінок за роками",
+    x = "Рік",
+    y = "Тривалість життя"
+  ) +
+  theme_minimal()
+```
+Оскільки попередні дані отримані для всього світу, обмежимося Україною та відфільтруємо дані. Для візалізації знову відмалюємо діаграму
+
+
+```{r}
+# Фільтрація даних для України
+data_ukraine <- data %>%
+  filter(Entity == "Ukraine") %>%  # Залишаємо лише рядки з Україною
+  pivot_longer(
+    cols = c(4, 5),
+    names_to = "Sex",
+    values_to = "Life_expectancy"
+  ) %>%
+  mutate(Sex = ifelse(Sex == names(data)[4], 
+                      "Жінки", "Чоловіки"))
+
+ggplot(data_ukraine, aes(x = Year, y = Life_expectancy, color = Sex)) +
+  geom_point(size = 3) +
+  labs(
+    title = "Тривалість життя чоловіків і жінок в Україні за роками",
+    x = "Рік",
+    y = "Тривалість життя"
+  ) +
+  scale_color_manual(values = c("Жінки" = "pink", "Чоловіки" = "lightblue")) +
+  theme_minimal()
+```
+
+Для кращого розуміння попередніх даних візуалізуємо їх за допомогою точкового графіку
+```{r}
+data_ukraine <- data %>%
+  filter(Entity == "Ukraine") %>%  
+  pivot_longer(
+    cols = c(4, 5),
+    names_to = "Sex",
+    values_to = "Life_expectancy"
+  ) %>%
+  mutate(Sex = ifelse(Sex == names(data)[4], 
+                      "Жінки", "Чоловіки"))
+
+ggplot(data_ukraine, aes(x = Year, y = Life_expectancy, color = Sex)) +
+  geom_point(size = 1) +
+  labs(
+    title = "Тривалість життя чоловіків в україні і жінок за роками",
+    x = "Рік",
+    y = "Тривалість життя"
+  ) +
+  scale_color_manual(values = c("Жінки" = "pink", "Чоловіки" = "lightblue")) +
+  theme_minimal()
+```
+
+### Побудова скатерплоту
+
+Для виявлення залежностей між даними про тривалість життя жінок і чоловіків побудуємо скатерплот
+
+```{r}
+
+
+data_ukraine <- data %>%
+  filter(Entity == "Ukraine") %>%
+  select(4, 5)
+
+# Побудова скатерплоту
+colnames(data_ukraine) <- c("Life_expectancy_female", "Life_expectancy_male")
+
+# Побудова скатерплоту
+ggplot(data_ukraine, aes(x = Life_expectancy_female, y = Life_expectancy_male)) +
+  geom_point(color = "blue", size = 1) +
+  labs(
+    title = "Залежність між тривалістю життя жінок і чоловіків в Україні",
+    x = "Тривалість життя жінок",
+    y = "Тривалість життя чоловіків"
+  ) +
+  theme_minimal()
+```
+
+
+## Висновки
+
+Скатерплот - це потужний інструмент для визначення та візуалізації залежностей в даних
+В ході виконання даної лабораторної роботи було використано ряд інструментів які допоомгли у візуалізації тривалості життя жінок та чоловіків у світі та зокрема в Україні за останні 73 роки. 
