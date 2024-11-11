@@ -1,0 +1,85 @@
+---
+title: "Лабораторна робота №6. Побудова моделей класифікації І. Пакет `caret`"
+author: "Valeriia Marynchenko"
+date: "2024-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+# Підключаємо бібліотеки
+library(RSQLite)
+library(dplyr)
+library(ggplot2)
+
+# Шлях до файлу бази даних
+db_path <- "land_income.db"
+
+# Підключення до бази даних
+conn <- dbConnect(SQLite(), dbname = db_path)
+
+# Завантаження даних з таблиці land_income у data frame
+land_data <- tbl(conn, "land_income") %>%
+  collect()  # collect() використовується для завантаження даних у R як data frame
+
+# 1. Обчислення середнього доходу на гектар по всіх областях
+average_income <- land_data %>%
+  summarise(avg_income_per_hectare = mean(income_per_hectare)) %>%
+  pull(avg_income_per_hectare)
+```
+
+
+
+
+```{r}
+cat("Середній дохід на гектар по всіх областях:", average_income, "грн\n")
+
+# 2. Фільтрація регіонів із доходом на гектар вище середнього
+above_average_regions <- land_data %>%
+  filter(income_per_hectare > average_income) %>%
+  arrange(desc(income_per_hectare))
+
+cat("Регіони з доходом на гектар вище середнього:\n")
+print(above_average_regions)
+```
+
+
+
+```{r}
+# 3. Групування та обчислення загального доходу для різних груп доходів
+income_groups <- land_data %>%
+  mutate(income_group = case_when(
+    income_per_hectare >= 10000 ~ "Високий",
+    income_per_hectare >= 5000 ~ "Середній",
+    TRUE ~ "Низький"
+  )) %>%
+  group_by(income_group) %>%
+  summarise(total_income = mean(income_per_hectare)) %>%
+  arrange(desc(total_income))
+
+cat("Загальний дохід по групах доходів:\n")
+print(income_groups)
+```
+Додаємо стовпець income_group за допомогою **mutate()** з умовами для визначення груп доходу.
+Додамо функції **group_by()** та **summarise()**, що дозволяють підсумувати загальний дохід по кожній групі доходу.
+
+
+```{r}
+# 4. Побудова графіка: розподіл доходу по областях
+ggplot(land_data, aes(x = reorder(region, -income_per_hectare), y = income_per_hectare, fill = region)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Доходи пайовиків по областях України",
+       x = "Регіон",
+       y = "Доход на гектар (грн)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Закриття з'єднання з базою даних
+dbDisconnect(conn)
+
+```
