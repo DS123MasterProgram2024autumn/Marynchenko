@@ -70,7 +70,9 @@ get_regions <- function() {
 
 # UI частина Shiny
 ui <- fluidPage(
-  titlePanel("Доходи пайовиків по областях"),
+  titlePanel("Лабораторна робота №4. Розробка ShinyApp застосунку"),
+  h4("Valeriia Marynchenko, 09.11.2024"),
+  h2("Доходи пайовиків по областях"),
   sidebarLayout(
     sidebarPanel(
       numericInput("hectares", "Введіть кількість гектарів:", value = 1, min = 1),
