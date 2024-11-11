@@ -1,0 +1,325 @@
+---
+title: "_Лабораторна робота № _3. Розвідувальний аналіз даних"
+author: "Valeriia Marynchenko"
+date: "2024-11-03"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Інсталюємо необхідні пакети
+packageNeed <- c("knitr", "dplyr", "ggplot2", "devtools", "sparklyr",
+                "GGally", "corrplot", "PerformanceAnalytics", "FactoMineR",
+                "factoextra", "desctable", "ade4", "psych",
+                "smacof", "WVPlots", "caret", "car")
+# install.packages(packageNeed)
+
+# Встановлення та завантаження пакету devtools, якщо він ще не встановлений
+if (!require(devtools)) {
+ install.packages("devtools")
+ library(devtools)
+}
+# 
+# # Інсталювати пакет funModeling з GitHub
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#devtools::install_github("pablo14/funModeling", dependencies = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+
+#install.packages("funModeling")
+# install.packages("sparklyr")
+# install.packages("GGally")
+# install.packages("corrplot")
+#install.packages("PerformanceAnalytics")
+#install.packages("FactoMineR")
+# install.packages("factoextra")
+#install.packages("desctable")
+#install.packages("ade4")
+# install.packages("psych")
+# install.packages("smacof")
+# install.packages("WVPlots")
+# install.packages("caret")
+# install.packages("car")
+
+lapply(packageNeed, library, character.only = TRUE)
+
+library(funModeling)
+```
+
+::: callout-tip
+
+:::
+
+
+
+Візьмемо для дослідження датасет `dt` і на його прикладі проведемо розвідувальний аналіз даних, водночас продемонстувавши можливі варіанти відповідного інструментарію.
+
+#### Візуалізація розподілу
+
+Спочатку завжди доцільно продивитися таблицю датасета, вивести основні статистичні характеристики та побудувати розподіли досліджуваних змінних.
+
+```{r}
+dt <- read.csv("./life-expectancy-of-women-vs-life-expectancy-of-men.csv")
+DT::datatable(dt)
+```
+
+Нижче наведено приклад розподілу категоріальної змінної `Life.expectancy...Sex..female...Age..0...Variant..estimates`.
+
+```{r echo=TRUE, message=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(ggplot2)
+
+dt |> 
+  ggplot() +
+  geom_bar(mapping = aes(x = Life.expectancy...Sex..female...Age..0...Variant..estimates))
+```
+
+Частоту для кожного значення категоріальної змінної можна обчислита, наприклад, так:
+
+```{r}
+dt |>  
+  count(Entity)
+```
+
+Для неперервних змінних доцільно побудувати гістограму.
+
+```{r}
+dt |> 
+  ggplot() +
+  geom_histogram(mapping = aes(x = Population...Sex..all...Age..all...Variant..estimates), binwidth = 2000000000)
+```
+
+Інтервальна таблиця частот, що відповідає гістограмі, може бути обчислена так:
+
+```{r}
+dt |> 
+  count(cut_width(Population...Sex..all...Age..all...Variant..estimates, 2000000000)) 
+```
+
+Можна побудувати гістограму для певної долі значень:
+
+```{r}
+smaller <- dt |> 
+  filter(Entity == 'Ukraine')
+  
+smaller |> 
+  ggplot(mapping = aes(x = Population...Sex..all...Age..all...Variant..estimates)) +
+  geom_histogram(binwidth = 1000000)
+```
+
+Часто буває доцільно побудвати серію гістограм для різних груп спостережень:
+
+```{r}
+smaller |> 
+  ggplot(mapping = aes(x = Population...Sex..all...Age..all...Variant..estimates, colour = Year)) +
+  geom_freqpoly(binwidth = 1000000)
+```
+
+#### Незвичайні значення
+
+Як правило у вибіркових даних зустірчаються викиди (outliers) -- такі значення свідчать або про похибку вимірювання, або про якість надзвичайні причини, що потребують уважного вивчення.
+
+```{r}
+smaller |> 
+  filter(Year >= 2000) |> 
+  ggplot() + 
+  geom_histogram(mapping = aes(x = Population...Sex..all...Age..all...Variant..estimates), binwidth = 1000000)
+```
+### Виконання завдання
+
+Дані з досліджуваного набору мають наступний вигляд:
+
+```{r}
+dt |> 
+  head()
+# dt |>
+#   desctable()
+```
+
+Обчислимо і дослідимо сумарні статистики.
+
+```{r}
+# Сводные выборочные характеристики
+dt |> 
+  summary() 
+```
+
+Що ми бачимо?
+
+-   не всі дані мають числову природу
+-   дані комплектні: відстуні пропущені значення
+-   присутні нульові значення нульові значення -- це означає можливі проблеми при трансформації
+-   по всіх змінних дані мають варіацію по унікальним значенням одного порядку.
+
+Дослідимо закони розподілу кожної зі змінних. Для цього побудуємо серію гістограм
+
+```{r}
+# Побудова 4x4 матриці гістограм і щільності нормального розподілу з відносними частками
+#install.packages("tidyverse")
+library(tidyverse)
+
+dt_long <- dt |>
+  select(-Entity, -Code, -Continent) |>
+  pivot_longer(cols = -"Population...Sex..all...Age..all...Variant..estimates")
+
+# Побудова графіка
+ggplot(dt_long, aes(x = value)) +
+  geom_histogram(binwidth = 0.2, 
+                 fill = "lightblue", 
+                 color = "darkgrey", 
+                 aes(y = after_stat(density))) +
+  geom_density(aes(y = after_stat(density)), color = "red") +
+  facet_wrap(~name, scales = "free") +
+  theme_minimal() +
+  labs(x = "Значення", y = "Відносна частота")
+```
+
+Що ми бачимо?
+
+-   статистичні розподіли змінних `"Life.expectancy...Sex..female...Age..0...Variant..estimates"`, `"Life.expectancy...Sex..male...Age..0...Variant..estimates"` та `"Year"`мають дзвоноподібну форму, наближену до нормального. Враховуючи, що значення оцінок асимметрії та ексцесу несуттєво відрізняються від нуля, в першому наближенні можна вважати дані розподіли нормальними. Про що це говорить і що це дає? По-перше, це говорить про те, що доля малих і великих даних врівноважують одна одну, по-друге, нормальність законів розподілу досліджуваних величин, або, принаймні, "натяк" на нормальність **завжди добре**, тому що класичними передумовами для коректної побудови великої кількості різного роду моделей вимагає від даних нормального закону розподілу, чи, принаймні, симетричності закону розподілу. В нашому випадку це є передумовою однорідного розподілу спостережень у просторі інформативних ознак, що є позитивним моментом при вирішенні задачі сегментації.\
+-   статистичні розподіли змінних `"Life.expectancy...Sex..female...Age..0...Variant..estimates"`, `"Life.expectancy...Sex..male...Age..0...Variant..estimates"` та `"Year"` мають чітку бімодальну структуру, що гооврить про явно виражену неоднорідність даних і про те, що саме ці дві змінні є дискримінуючими у просторі досліджуваних ознак; це важливо для побудови задачі сегментації
+
+Для відповіді на питання, чи пов'язані між собою змінні, застосуємо кореляційний аналіз. З урахуванням числової природи даних, для оцінки кореляції скористаємося коефіцієнтом кореляції Пірсона. Враховуючі багатомірний аналіз початкових даних, важливо вдало підібрати візуалізатор. Нижче запропоновано два з найбільш відомих і поширених.
+
+```{r}
+# Кореляція Пірсона
+library(dplyr)
+library(corrplot)
+library(PerformanceAnalytics)
+
+# Select only numeric columns and remove rows with NA or Inf values
+dt_numeric <- dt |>
+  select(-Population...Sex..all...Age..all...Variant..estimates) |>
+  select(where(is.numeric)) # Select only numeric columns
+
+# Check for Inf values and replace them with NA
+dt_numeric[!sapply(dt_numeric, is.finite)] <- NA
+
+# Remove rows with NA values
+dt_numeric <- na.omit(dt_numeric)
+
+# Calculate correlation and create the corrplot
+correlation_matrix <- cor(dt_numeric)
+
+# Check if the correlation matrix has any NA values
+if (any(is.na(correlation_matrix))) {
+  stop("Correlation matrix contains NA values.")
+}
+
+# Create the corrplot
+corrplot(correlation_matrix, order = "hclust", tl.col = 'black', tl.cex = .75)
+
+# Create a correlation chart
+chart.Correlation(dt_numeric, histogram = TRUE, pch = 19)
+```
+```{r}
+library(dplyr)
+library(knitr)
+
+# Select only numeric columns and remove the specified column
+df_dt <- dt |> 
+  select(-"Population...Sex..all...Age..all...Variant..estimates") |> 
+  select(where(is.numeric)) # Ensure that we only have numeric columns
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(df_dt, use = "pairwise.complete.obs") # Handle NA values
+
+# Display the correlation matrix using knitr::kable
+knitr::kable(correlation_matrix, caption = "Population Correlation Matrix")
+```
+Наявність високого ступеня кореляції дає можливість знизити розмірність даних і знайти просту структуру у просторі меншої розмірності. У просторі меншої розмірності можна можна виконати сегментацію даних.
+
+Для зниження розмірності і одночасно сегментації даних скористаємося методом головних компонент (PCA).
+
+```{r}
+# PCA
+install.packages("FactoMineR")
+library(FactoMineR)
+library(dplyr)
+library(knitr)
+
+resPCA <- dt |> 
+  select(-"Population...Sex..all...Age..all...Variant..estimates") |> 
+  select(where(is.numeric)) |>
+  PCA(ncp = 8, graph = TRUE)
+```
+
+```{r}
+# власні значення та кумулятивний процент
+eigenvalues <- as.data.frame(resPCA$eig)
+cumVar <- round(eigenvalues$`cumulative percentage of variance`[length(eigenvalues$eigenvalue[eigenvalues$eigenvalue >= 0.9])], 2)
+```
+
+```{r}
+knitr::kable(
+  eigenvalues, 
+  caption = "Власні значення (eigenvalues) і сумарний процент поясненої дисперсії"
+)
+```
+
+```{r}
+
+fviz_screeplot(resPCA, addlabels = TRUE,  ncp=10)
+```
+
+Чщо ми бачимо?\
+Ми маємо $p=$ `r length(eigenvalues$eigenvalu[eigenvalues$eigenvalue >= 0.9])` головних компонент, які пояснюють `r cumVar` % дисперсії. Це значить, що м маємо всього дві нові компоненти замість чотирьох і практично без втрати інформації можемо представити всі спостереження в системі двох координат на площині: перша компонента по осі `Х`, друга -- по осі Y (див. рис.).\
+Проаналізуємо детально структуру двох перших компонент, виключивши решту незначимих (див. табл. і рис.).
+
+```{r}
+# Навантаження для двох перших головних компонент
+knitr::kable(
+  resPCA$var$coord[ ,1:2], 
+  caption = "Таблиця навантажень"
+)
+
+```
+
+
+Створимо біплот для відображення залежностей показників один від одного. Це дасть можливість знайти спільні риси для кожного показника
+
+```{r}
+library(tidyr)
+#dt_numeric <- dt_numeric %>%
+ # filter(complete.cases(.))
+filtered_dt <- dt %>%
+  filter(complete.cases(.)) %>%
+  select(Year, Entity, everything())  # Select Year and Entity, then the rest of the numeric columns
+
+# Step 2: Separate numeric data for PCA
+dt_numeric <- filtered_dt %>%
+  select_if(is.numeric)
+
+
+# pca_result <- prcomp(dt_numeric, center = TRUE, scale.unit = TRUE)
+#pca_result <- filtered_dt |>
+ # PCA(scale.unit = TRUE, ncp = ncol(filtered_dt), graph = FALSE)
+pca_result <- PCA(dt_numeric, scale.unit = TRUE, ncp = ncol(dt_numeric), graph = FALSE)
+
+print(head(pca_result$var$coord,3))
+
+pca_result_fm <- PCA(dt_numeric, scale.unit = TRUE, graph = FALSE)
+# Create a biplot using FactoMineR and factoextra
+if (!is.null(pca_result_fm)) {
+  # Step 5: Visualize the PCA results
+  fviz_pca_biplot(pca_result, 
+                  repel = TRUE,
+                  geom = c("point"),
+                  axes=c(1,4),
+                  label = c("ind", "var"),
+                  palette = c("pink", "blue"),
+                  
+                   addEllipses = TRUE, ellipse.level = 0.95) + theme_minimal()
+}
+
+```
+
+Таким чином, з'ясовано, шо початкові дані не є однорідними. отриманні дані надають можливість провести аналіз за популяцією певної країни і встановити залежність тривалості життя людей різних статей за середнім показником залежно одна від одної.
