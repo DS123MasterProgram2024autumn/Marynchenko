@@ -1,13 +1,15 @@
-
-# інсталюємо пакет
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+# Інсталюємо та підключаємо пакети
+install.packages("DBI")
+install.packages("RSQLite")
+install.packages("shiny")
+install.packages("ggplot2")
+install.packages("dplyr")
+install.packages("DT")
 library(shiny)
 library(ggplot2)
 library(dplyr)
 library(DT)
-
-#install.packages("DBI")
-#install.packages("RSQLite")
-# Підключаємо бібліотеки
 library(RSQLite)
 
 # Шлях до файлу бази даних
@@ -15,10 +17,8 @@ db_path <- "land_income.db"
 
 # Функція для створення бази даних, якщо вона не існує
 create_database <- function(db_path) {
-  # Підключаємось до бази даних
   conn <- dbConnect(SQLite(), dbname = db_path)
   
-  # Створюємо таблицю, якщо вона не існує
   dbExecute(conn, "
     CREATE TABLE IF NOT EXISTS land_income (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +27,6 @@ create_database <- function(db_path) {
     )
   ")
   
-  # Вставляємо початкові дані, якщо таблиця порожня
   existing_data <- dbGetQuery(conn, "SELECT COUNT(*) as count FROM land_income")
   
   if (existing_data$count == 0) {
@@ -53,7 +52,6 @@ create_database <- function(db_path) {
     ")
   }
   
-  # Закриваємо з'єднання з базою даних
   dbDisconnect(conn)
 }
 
@@ -77,17 +75,18 @@ ui <- fluidPage(
     sidebarPanel(
       numericInput("hectares", "Введіть кількість гектарів:", value = 1, min = 1),
       checkboxGroupInput("selected_regions", "Виберіть регіони:", choices = get_regions(), selected = get_regions()),
+      selectInput("display_type", "Виберіть тип відображення:", choices = c("Таблиця" = "table", "Діаграма" = "chart")),
       actionButton("calculate", "Розрахувати дохід")
     ),
     mainPanel(
-      tableOutput("incomeTable")
+      uiOutput("output_ui")  # Динамічний UI для відображення таблиці або діаграми
     )
   )
 )
 
 # Server частина Shiny
 server <- function(input, output) {
-  # Підключення до бази даних та отримання даних для таблиці
+  # Підключення до бази даних та обробка даних після натискання кнопки
   observeEvent(input$calculate, {
     conn <- dbConnect(SQLite(), dbname = db_path)
     
@@ -101,13 +100,33 @@ server <- function(input, output) {
     
     dbDisconnect(conn)
     
-    # Відображення результату в таблиці
+    # Вибір між таблицею та діаграмою
+    output$output_ui <- renderUI({
+      if (input$select == "table") {
+        tableOutput("incomeTable")
+      } else {
+        plotOutput("incomeChart")
+      }
+    })
+    
+    # Відображення даних як таблиці
     output$incomeTable <- renderTable({
       data
     })
+    
+    # Відображення даних як діаграми
+    output$incomeChart <- renderPlot({
+      ggplot(data, aes(x = reorder(region, -total_income), y = total_income, fill = region)) +
+        geom_col() +
+        coord_flip() +
+        labs(title = "Загальний дохід за обрану кількість гектарів",
+             x = "Регіон",
+             y = "Загальний дохід (грн)") +
+        theme_minimal() +
+        theme(legend.position = "none")
+    })
   })
 }
-
 
 # Запускаємо додаток
 shinyApp(ui = ui, server = server)
